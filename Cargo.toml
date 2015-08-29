@@ -1,0 +1,11 @@
+[package]
+name = "rack"
+version = "0.1.0"
+authors = ["Kevin Bullock <kbullock@ringworld.org>"]
+
+[lib]
+name = "rack"
+crate-type = ["dylib"]
+
+[dependencies]
+libc = "*"
