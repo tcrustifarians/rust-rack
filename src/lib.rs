@@ -2,21 +2,22 @@ extern crate libc;
 
 use std::collections::HashMap;
 use std::ffi::CString;
-use libc::{c_int, uintptr_t};
+use libc::{c_char, c_int, uintptr_t};
 
-pub type RbValue = libc::uintptr_t;
+pub type RbValue = uintptr_t;
 
 #[link(name = "ruby")]
 extern {
-    fn rb_define_module(name: *const libc::c_char) -> RbValue;
+    fn rb_define_module(name: *const c_char) -> RbValue;
     fn rb_define_singleton_method(
-        object: uintptr_t, name: *const libc::c_char,
+        object: uintptr_t, name: *const c_char,
         func: extern fn(RbValue) -> RbValue,
-        argc: libc::c_int);
+        argc: c_int);
 
-    fn rb_str_new_cstr(ptr: *const libc::c_char) -> RbValue;
 
-    fn rb_ary_new(len: libc::c_int) -> RbValue;
+    fn rb_str_new_cstr(ptr: *const c_char) -> RbValue;
+
+    fn rb_ary_new(len: c_int) -> RbValue;
     fn rb_ary_push(array: RbValue, value: RbValue);
 
     fn rb_hash_new() -> RbValue;
@@ -42,7 +43,7 @@ unsafe fn rb_hash_to_map(_: RbValue) -> HashMap<String, String> {
 
 unsafe fn vec_to_rb_array(vec: Vec<String>) -> RbValue {
     let len = vec.len();
-    let rb_array = rb_ary_new(len as libc::c_int);
+    let rb_array = rb_ary_new(len as c_int);
     for el in vec {
         rb_ary_push(
             rb_array,
