@@ -11,7 +11,7 @@ extern {
     fn rb_define_module(name: *const c_char) -> RbValue;
     fn rb_define_singleton_method(
         object: uintptr_t, name: *const c_char,
-        func: extern fn(RbValue) -> RbValue,
+        func: extern fn(RbValue, RbValue) -> RbValue,
         argc: c_int);
 
 
@@ -60,7 +60,7 @@ fn endpoint(_: HashMap<String, String>) -> (String, HashMap<String, String>, Vec
     (status, headers, body)
 }
 
-pub extern fn endpoint_call(env_hash: RbValue) -> RbValue {
+pub extern fn endpoint_call(_: RbValue, env_hash: RbValue) -> RbValue {
     let env = unsafe { rb_hash_to_map(env_hash) };
     let (status, headers, body) = endpoint(env);
     let retval: RbValue;
@@ -84,7 +84,7 @@ pub extern fn Init_rust_rack() {
         let mRustRack = rb_define_module(mod_name.as_ptr());
         rb_define_singleton_method(
             mRustRack, CString::new("call").unwrap().as_ptr(),
-            endpoint_call, 1); // FIXME: pass a function ptr and arity
+            endpoint_call, 1);
     }
 }
 
