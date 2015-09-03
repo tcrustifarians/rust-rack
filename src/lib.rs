@@ -23,6 +23,8 @@ extern {
                      block: extern fn(RbValue, RbValue, c_int, *const RbValue) -> RbValue,
                      data: RbValue) -> RbValue;
 
+    fn rb_inspect(obj: RbValue) -> RbValue;
+
     fn rb_str_new_cstr(ptr: *const c_char) -> RbValue;
     fn rb_string_value_cstr(ptr: *const RbValue) -> *const c_char;
 
@@ -77,11 +79,26 @@ unsafe fn vec_to_rb_array(vec: Vec<String>) -> RbValue {
     rb_array
 }
 
-fn endpoint(_: HashMap<String, RbValue>) -> (String, HashMap<String, String>, Vec<String>) {
+fn format_env(env: HashMap<String, RbValue>) -> String {
+    let mut formatted = String::from("{");
+    for (k, v) in env {
+        formatted.push_str(&format!("{:?}", k));
+        formatted.push_str(": ");
+        let v_to_s = unsafe {
+            CStr::from_ptr(rb_string_value_cstr(&rb_inspect(v)))
+        }.to_str().ok().unwrap();
+        formatted.push_str(v_to_s);
+        formatted.push_str(", ")
+    }
+    formatted.push_str("}");
+    formatted
+}
+
+fn endpoint(env: HashMap<String, RbValue>) -> (String, HashMap<String, String>, Vec<String>) {
     let status = String::from("200");
     let mut headers = HashMap::new();
     headers.insert(String::from("Content-Type"), String::from("text/plain"));
-    let body = vec![String::from("Hello from Rust!")];
+    let body = vec![String::from("Hello from Rust!\n"), format_env(env)];
     (status, headers, body)
 }
 
