@@ -1,10 +1,13 @@
+#![feature(cstr_to_str)]
+
 extern crate libc;
 
 use std::collections::HashMap;
-use std::ffi::CString;
-use libc::{c_char, c_int, uintptr_t};
+use std::ffi::{CStr, CString};
+use libc::{c_char, c_int, c_long, uintptr_t};
 
 pub type RbValue = uintptr_t;
+pub type RbId = uintptr_t;
 
 #[link(name = "ruby")]
 extern {
@@ -14,10 +17,17 @@ extern {
         func: extern fn(RbValue, RbValue) -> RbValue,
         argc: c_int);
 
+    fn rb_intern(name: *const c_char) -> RbId;
+    fn rb_block_call(obj: RbValue, meth: RbId,
+                     argc: c_int, argv: *const RbValue,
+                     block: extern fn(RbValue, RbValue, c_int, *const RbValue) -> RbValue,
+                     data: RbValue) -> RbValue;
 
     fn rb_str_new_cstr(ptr: *const c_char) -> RbValue;
+    fn rb_string_value_cstr(ptr: *const RbValue) -> *const c_char;
 
     fn rb_ary_new(len: c_int) -> RbValue;
+    fn rb_ary_entry(array: RbValue, offset: c_long) -> RbValue;
     fn rb_ary_push(array: RbValue, value: RbValue);
 
     fn rb_hash_new() -> RbValue;
@@ -35,9 +45,24 @@ unsafe fn map_to_rb_hash(map: HashMap<String, String>) -> RbValue {
     rb_hash
 }
 
-unsafe fn rb_hash_to_map(_: RbValue) -> HashMap<String, String> {
+extern fn insert_rb_hash_entry_into_map(_: RbValue, map_ptr: RbValue, _argc: c_int, argv: *const RbValue) -> RbValue {
+    let (map, key, val): (&mut HashMap<_,_>, String, RbValue);
+    unsafe {
+        map = &mut *(map_ptr as *mut HashMap<String, RbValue>);
+        key = String::from(CStr::from_ptr(rb_string_value_cstr(&rb_ary_entry(*argv, 0) as *const RbValue)).to_str().ok().unwrap());
+        val = rb_ary_entry(*argv, 1);
+    }
+    map.insert(key, val);
+    0
+}
+
+unsafe fn rb_hash_to_map(rb_hash: RbValue) -> HashMap<String, RbValue> {
     let map = HashMap::new();
-    // insert key/value pairs from Ruby hash into `map`
+    let map_ptr = &map as *const HashMap<_, _>;
+    rb_block_call(rb_hash,
+                  rb_intern(CString::new("each_pair").unwrap().as_ptr()),
+                  0, 0 as *const RbValue,
+                  insert_rb_hash_entry_into_map, map_ptr as uintptr_t);
     map
 }
 
@@ -52,7 +77,7 @@ unsafe fn vec_to_rb_array(vec: Vec<String>) -> RbValue {
     rb_array
 }
 
-fn endpoint(_: HashMap<String, String>) -> (String, HashMap<String, String>, Vec<String>) {
+fn endpoint(_: HashMap<String, RbValue>) -> (String, HashMap<String, String>, Vec<String>) {
     let status = String::from("200");
     let mut headers = HashMap::new();
     headers.insert(String::from("Content-Type"), String::from("text/plain"));
