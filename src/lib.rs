@@ -6,21 +6,23 @@ use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use libc::{c_char, c_int, c_long, uintptr_t};
 
-pub type RbValue = uintptr_t;
+#[repr(C)]
+#[derive(Clone,Copy)]
+pub struct RbValue(uintptr_t);
 pub type RbId = uintptr_t;
 
 #[link(name = "ruby")]
 extern {
     fn rb_define_module(name: *const c_char) -> RbValue;
     fn rb_define_singleton_method(
-        object: uintptr_t, name: *const c_char,
+        object: RbValue, name: *const c_char,
         func: extern fn(RbValue, RbValue) -> RbValue,
         argc: c_int);
 
     fn rb_intern(name: *const c_char) -> RbId;
     fn rb_block_call(obj: RbValue, meth: RbId,
                      argc: c_int, argv: *const RbValue,
-                     block: extern fn(RbValue, RbValue, c_int, *const RbValue) -> RbValue,
+                     block: extern fn(RbValue, RbValue, c_int, *const RbValue),
                      data: RbValue) -> RbValue;
 
     fn rb_inspect(obj: RbValue) -> RbValue;
@@ -47,7 +49,8 @@ unsafe fn map_to_rb_hash(map: HashMap<String, String>) -> RbValue {
     rb_hash
 }
 
-extern fn insert_rb_hash_entry_into_map(_: RbValue, map_ptr: RbValue, _argc: c_int, argv: *const RbValue) -> RbValue {
+extern fn insert_rb_hash_entry_into_map(_: RbValue, map_rbval: RbValue, _argc: c_int, argv: *const RbValue) {
+    let RbValue(map_ptr) = map_rbval;
     let (map, key, val): (&mut HashMap<_,_>, String, RbValue);
     unsafe {
         map = &mut *(map_ptr as *mut HashMap<String, RbValue>);
@@ -55,16 +58,15 @@ extern fn insert_rb_hash_entry_into_map(_: RbValue, map_ptr: RbValue, _argc: c_i
         val = rb_ary_entry(*argv, 1);
     }
     map.insert(key, val);
-    0
 }
 
 unsafe fn rb_hash_to_map(rb_hash: RbValue) -> HashMap<String, RbValue> {
     let map = HashMap::new();
-    let map_ptr = &map as *const HashMap<_, _>;
+    let map_ptr = RbValue(&map as *const HashMap<_, _> as uintptr_t);
     rb_block_call(rb_hash,
                   rb_intern(CString::new("each_pair").unwrap().as_ptr()),
                   0, 0 as *const RbValue,
-                  insert_rb_hash_entry_into_map, map_ptr as uintptr_t);
+                  insert_rb_hash_entry_into_map, map_ptr);
     map
 }
 
