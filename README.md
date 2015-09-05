@@ -7,7 +7,7 @@ requests.
 
 To compile:
 
-    $ cargo build && ld -bundle -o lib/rust_rack.bundle target/debug/librack.dylib
+    $ make
 
 This creates a shim Ruby native extension (lib/rust_rack.bundle) that
 links against the compiled Rust library. The included config.ru will
